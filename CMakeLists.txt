@@ -52,6 +52,7 @@ target_link_libraries(ssd1306_pico
 # Add the standard include files to the build
 target_include_directories(ssd1306_pico PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}
+    ${CMAKE_CURRENT_LIST_DIR}/integration_test
 )
 
 # Add any user requested libraries

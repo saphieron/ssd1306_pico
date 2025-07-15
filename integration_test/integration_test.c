@@ -3,6 +3,7 @@
 #include "pico/stdlib.h"
 #include "hardware/i2c.h"
 
+#include <i2c_test_wrapper.h>
 #include <ssd1306.h>
 
 
@@ -55,7 +56,7 @@ static uint8_t raspberry26x32[] = { 0x0, 0x0, 0xe, 0x7e, 0xfe, 0xff, 0xff, 0xff,
 int run_hardware_test() {
     stdio_init_all();
 
-    printf("hardware test for SSD1306 driver\n");
+    printf("Hardware test for SSD1306 driver\n");
     //TODO: reevaluate this init part
     // TODO replace i2c inits with the handler implementation
 
@@ -113,9 +114,12 @@ int run_hardware_test() {
 
     while (1) {
 
+        printf("Looping over test cases\n");
+
         raspberry_area.start_col = 0;
         raspberry_area.end_col = IMG_WIDTH - 1;
 
+        printf("Render and scroll images\n");
         SSD1306_get_buflen_from_render_area(&raspberry_area);
         uint8_t offset = 5 + IMG_WIDTH; // 5px padding
 
@@ -128,6 +132,7 @@ int run_hardware_test() {
         sleep_ms(5000);
         SSD1306_scroll(SSD1306_I2C_ADDR, false);
 
+        printf("Write string\n");
         // Now show off some text
         char* text[] = {
             "A long time ago",
@@ -147,11 +152,13 @@ int run_hardware_test() {
         SSD1306_render_area(SSD1306_I2C_ADDR, buf, &complete_display_area);
         sleep_ms(3000);
 
+        printf("Invert screen\n");
         // Test the display invert function
         SSD1306_send_cmd(SSD1306_I2C_ADDR, SSD1306_SET_INV_DISP);
         sleep_ms(3000);
         SSD1306_send_cmd(SSD1306_I2C_ADDR, SSD1306_SET_NORM_DISP);
 
+        printf("Draw looping lines effect\n");
         //Draw some lines
         bool pix = true;
         for (int i = 0; i < 2;i++) {
