@@ -77,7 +77,7 @@ int run_hardware_test() {
     printf("initialised i2c, got status code %u\n", status);
 
     // run through the complete initialization process
-    SSD1306_init(SSD1306_I2C_ADDR);
+    SSD1306_init(SSD1306_I2C_ADDR, 128, 32);
 
     printf("initialised ssd1306\n");
 
@@ -98,13 +98,10 @@ int run_hardware_test() {
     memset(buf, 0, complete_display_area.buflen);
     SSD1306_render_area(SSD1306_I2C_ADDR, buf, &complete_display_area);
 
-    // intro sequence: flash the screen 3 times
-    for (int i = 0; i < 3; i++) {
-        SSD1306_send_cmd(SSD1306_I2C_ADDR, SSD1306_SET_ALL_ON);    // Set all pixels on
-        sleep_ms(500);
-        SSD1306_send_cmd(SSD1306_I2C_ADDR, SSD1306_SET_ENTIRE_ON); // go back to following RAM for pixel state
-        sleep_ms(500);
-    }
+    SSD1306_send_raw_cmd(SSD1306_I2C_ADDR, SSD1306_SET_ALL_ON);    // Set all pixels on
+    sleep_ms(500);
+    SSD1306_send_raw_cmd(SSD1306_I2C_ADDR, SSD1306_SET_ENTIRE_ON); // go back to following RAM for pixel state
+    sleep_ms(500);
 
     // render 3 cute little raspberries
     ssd1306_render_area_t raspberry_area = {
@@ -128,9 +125,9 @@ int run_hardware_test() {
             raspberry_area.start_col += offset;
             raspberry_area.end_col += offset;
         }
-        SSD1306_scroll(SSD1306_I2C_ADDR, true);
+        SSD1306_set_scrolling(SSD1306_I2C_ADDR, true);
         sleep_ms(5000);
-        SSD1306_scroll(SSD1306_I2C_ADDR, false);
+        SSD1306_set_scrolling(SSD1306_I2C_ADDR, false);
 
         printf("Write string\n");
         // Now show off some text
@@ -154,9 +151,9 @@ int run_hardware_test() {
 
         printf("Invert screen\n");
         // Test the display invert function
-        SSD1306_send_cmd(SSD1306_I2C_ADDR, SSD1306_SET_INV_DISP);
+        SSD1306_send_raw_cmd(SSD1306_I2C_ADDR, SSD1306_SET_INV_DISP);
         sleep_ms(3000);
-        SSD1306_send_cmd(SSD1306_I2C_ADDR, SSD1306_SET_NORM_DISP);
+        SSD1306_send_raw_cmd(SSD1306_I2C_ADDR, SSD1306_SET_NORM_DISP);
 
         printf("Draw looping lines effect\n");
         //Draw some lines

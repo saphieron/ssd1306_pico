@@ -24,28 +24,28 @@
 #include "ssd1306_font.h"
 
 
-/* Example code to talk to an SSD1306-based OLED display
+ /* Example code to talk to an SSD1306-based OLED display
 
-   The SSD1306 is an OLED/PLED driver chip, capable of driving displays up to
-   128x64 pixels.
+    The SSD1306 is an OLED/PLED driver chip, capable of driving displays up to
+    128x64 pixels.
 
-   NOTE: Ensure the device is capable of being driven at 3.3v NOT 5v. The Pico
-   GPIO (and therefore I2C) cannot be used at 5v.
+    NOTE: Ensure the device is capable of being driven at 3.3v NOT 5v. The Pico
+    GPIO (and therefore I2C) cannot be used at 5v.
 
-   You will need to use a level shifter on the I2C lines if you want to run the
-   board at 5v.
+    You will need to use a level shifter on the I2C lines if you want to run the
+    board at 5v.
 
-   Connections on Raspberry Pi Pico board, other boards may vary.
+    Connections on Raspberry Pi Pico board, other boards may vary.
 
-   GPIO PICO_DEFAULT_I2C_SDA_PIN (on Pico this is GP4 (pin 6)) -> SDA on display
-   board
-   GPIO PICO_DEFAULT_I2C_SCL_PIN (on Pico this is GP5 (pin 7)) -> SCL on
-   display board
-   3.3v (pin 36) -> VCC on display board
-   GND (pin 38)  -> GND on display board
-*/
+    GPIO PICO_DEFAULT_I2C_SDA_PIN (on Pico this is GP4 (pin 6)) -> SDA on display
+    board
+    GPIO PICO_DEFAULT_I2C_SCL_PIN (on Pico this is GP5 (pin 7)) -> SCL on
+    display board
+    3.3v (pin 36) -> VCC on display board
+    GND (pin 38)  -> GND on display board
+ */
 
-void SSD1306_send_cmd(uint8_t dev_addr, uint8_t cmd) {
+void SSD1306_send_raw_cmd(uint8_t dev_addr, uint8_t cmd) {
     // I2C write process expects a control byte followed by data
     // this "data" can be a command or data to follow up a command
     // Co = 1, D/C = 0 => the driver expects a command
@@ -54,9 +54,9 @@ void SSD1306_send_cmd(uint8_t dev_addr, uint8_t cmd) {
     i2c_handler_write(dev_addr, buf, 2);
 }
 
-void SSD1306_send_cmd_list(uint8_t dev_addr, uint8_t* buf, int num) {
+void SSD1306_send_raw_cmd_list(uint8_t dev_addr, uint8_t* buf, int num) {
     for (int i = 0;i < num;i++) {
-        SSD1306_send_cmd(dev_addr, buf[i]);
+        SSD1306_send_raw_cmd(dev_addr, buf[i]);
     }
 }
 
@@ -82,20 +82,35 @@ void SSD1306_send_buf(uint8_t dev_addr, uint8_t buf[], int buflen) {
 #define count_of(a) (sizeof(a)/sizeof((a)[0]))
 #endif
 
-void SSD1306_init(uint8_t dev_addr) {
-    // Some of these commands are not strictly necessary as the reset
-    // process defaults to some of these but they are shown here
-    // to demonstrate what the initialization sequence looks like
-    // Some configuration values are recommended by the board manufacturer
+
+
+// Initialisation of the SSD1306 driver to a known, working state.
+// It is posible to initialise the driver manually with \ref SSD1306_send_raw_cmd_list().
+// Some of these commands are not strictly necessary as the reset
+// process defaults to some of these but they are shown here
+// to demonstrate what the initialization sequence looks like
+// Some configuration values are recommended by the board manufacturer
+int32_t SSD1306_init(uint8_t dev_addr, uint8_t screen_width, uint8_t screen_height) {
 
     // TODO: give unnamed constants a name.
     // TODO: check if the bit masking is strictly necessary, or it couldn't just be another constant 
-    // TODO: make the init value for screen width/height configurable
+    uint8_t screen_size_config_value = 0x02;
+    if (screen_width != 128) {
+        return SSD1306_ERROR_SCREEN_WIDTH_NOT_SUPPORTED;
+    }
+    if (screen_height == 32) {
+        screen_size_config_value = 0x02;
+    } else if (screen_height == 64) {
+        screen_size_config_value = 0x12;
+    } else {
+        return SSD1306_ERROR_SCREEN_HEIGHT_NOT_SUPPORTED;
+    }
+
     uint8_t cmds[] = {
         SSD1306_SET_DISP,               // set display off
         /* memory mapping */
         SSD1306_SET_MEM_MODE,           // set memory address mode 0 = horizontal, 1 = vertical, 2 = page
-        0x00,                           // horizontal addressing mode
+        SSD1306_MEM_MODE_HORIZONTAL,    // horizontal addressing mode
         /* resolution and layout */
         SSD1306_SET_DISP_START_LINE,    // set display start line to 0
         SSD1306_SET_SEG_REMAP | 0x01,   // set segment re-map, column address 127 is mapped to SEG0
@@ -103,38 +118,33 @@ void SSD1306_init(uint8_t dev_addr) {
         SSD1306_HEIGHT - 1,             // Display height - 1
         SSD1306_SET_COM_OUT_DIR | 0x08, // set COM (common) output scan direction. Scan from bottom up, COM[N-1] to COM0
         SSD1306_SET_DISP_OFFSET,        // set display offset
-        0x00,                           // no offset
+        SSD1306_NO_DISPLAY_OFFSET,      // no offset
         SSD1306_SET_COM_PIN_CFG,        // set COM (common) pins hardware configuration. Board specific magic number.
-        // 0x02 Works for 128x32, 0x12 Possibly works for 128x64. Other options 0x22, 0x32
-#if ((SSD1306_WIDTH == 128) && (SSD1306_HEIGHT == 32))
-        0x02,
-#elif ((SSD1306_WIDTH == 128) && (SSD1306_HEIGHT == 64))
-        0x12,
-#else
-        0x02,
-#endif
+        // 0x02 Works for 128x32, 0x12 Possibly works for 128x64. Other options 0x22, 0x32 are untested
+        screen_size_config_value,
         /* timing and driving scheme */
         SSD1306_SET_DISP_CLK_DIV,       // set display clock divide ratio
-        0x80,                           // div ratio of 1, standard freq
+        SSD1306_DISP_CLK_DIV_1,                           // div ratio of 1, standard freq
         SSD1306_SET_PRECHARGE,          // set pre-charge period
-        0xF1,                           // Vcc internally generated on our board
+        SSD1306_PRECHARGE_VCC_INTERNAL, // Vcc internally generated on our board
         SSD1306_SET_VCOM_DESEL,         // set VCOMH deselect level
-        0x30,                           // 0.83xVcc
+        SSD1306_VCOM_DESEL_0_83_VCC,    // 0.83xVcc
         /* display */
         SSD1306_SET_CONTRAST,           // set contrast control
-        0xFF,
+        0xFF,                           // Full contrast
         SSD1306_SET_ENTIRE_ON,          // set entire display on to follow RAM content
-        SSD1306_SET_NORM_DISP,           // set normal (not inverted) display
+        SSD1306_SET_NORM_DISP,          // set normal (not inverted) display
         SSD1306_SET_CHARGE_PUMP,        // set charge pump
-        0x14,                           // Vcc internally generated on our board
+        SSD1306_CHARGE_PUMP_VCC_INTERNAL, // Vcc internally generated on our board
         SSD1306_SET_SCROLL | 0x00,      // deactivate horizontal scrolling if set. This is necessary as memory writes will corrupt if scrolling was enabled
         SSD1306_SET_DISP | 0x01, // turn display on
     };
 
-    SSD1306_send_cmd_list(dev_addr, cmds, count_of(cmds));
+    SSD1306_send_raw_cmd_list(dev_addr, cmds, count_of(cmds));
+    return 0;
 }
 
-void SSD1306_scroll(uint8_t dev_addr, bool on) {
+void SSD1306_set_scrolling(uint8_t dev_addr, bool on) {
     // configure horizontal scrolling
     //TODO: reevaluate what this is meant to be saying.
     uint8_t cmds[] = {
@@ -148,10 +158,10 @@ void SSD1306_scroll(uint8_t dev_addr, bool on) {
         SSD1306_SET_SCROLL | (on ? 0x01 : 0) // Start/stop scrolling
     };
 
-    SSD1306_send_cmd_list(dev_addr, cmds, count_of(cmds));
+    SSD1306_send_raw_cmd_list(dev_addr, cmds, count_of(cmds));
 }
 
-//TODO: refactor to better public name
+
 void SSD1306_render_area(uint8_t dev_addr, uint8_t* buf, ssd1306_render_area_t* area) {
     // update a portion of the display with a render area
     uint8_t cmds[] = {
@@ -163,7 +173,7 @@ void SSD1306_render_area(uint8_t dev_addr, uint8_t* buf, ssd1306_render_area_t* 
         area->end_page
     };
 
-    SSD1306_send_cmd_list(dev_addr, cmds, count_of(cmds));
+    SSD1306_send_raw_cmd_list(dev_addr, cmds, count_of(cmds));
     SSD1306_send_buf(dev_addr, buf, area->buflen);
 }
 

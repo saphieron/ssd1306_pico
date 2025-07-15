@@ -68,6 +68,18 @@
 #define SSD1306_WRITE_MODE         0xFE
 #define SSD1306_READ_MODE          0xFF
 
+// command config values
+#define SSD1306_MEM_MODE_HORIZONTAL        0x00 //others exist
+#define SSD1306_NO_DISPLAY_OFFSET 0x00
+#define SSD1306_DISP_CLK_DIV_1 0x80
+#define SSD1306_PRECHARGE_VCC_INTERNAL 0xF1
+#define SSD1306_VCOM_DESEL_0_83_VCC 0x30
+#define SSD1306_CHARGE_PUMP_VCC_INTERNAL 0x14
+
+//Errors
+#define SSD1306_ERROR_SCREEN_WIDTH_NOT_SUPPORTED -1
+#define SSD1306_ERROR_SCREEN_HEIGHT_NOT_SUPPORTED -2
+
 
 typedef struct render_area {
     uint8_t start_col;
@@ -79,10 +91,10 @@ typedef struct render_area {
 } ssd1306_render_area_t;
 
 
-void SSD1306_init(uint8_t dev_addr);
-void SSD1306_send_cmd(uint8_t dev_addr, uint8_t cmd);
-void SSD1306_send_cmd_list(uint8_t dev_addr, uint8_t* buf, int num);
-void SSD1306_scroll(uint8_t dev_addr, bool on);
+int32_t SSD1306_init(uint8_t dev_addr, uint8_t screen_width, uint8_t screen_height);
+void SSD1306_send_raw_cmd(uint8_t dev_addr, uint8_t cmd);
+void SSD1306_send_raw_cmd_list(uint8_t dev_addr, uint8_t* buf, int num);
+void SSD1306_set_scrolling(uint8_t dev_addr, bool on);
 void SSD1306_render_area(uint8_t dev_addr, uint8_t* buf, ssd1306_render_area_t* area);
 void SSD1306_set_pixel(uint8_t* buf, int x, int y, bool on);
 void SSD1306_draw_line(uint8_t* buf, int x0, int y0, int x1, int y1, bool on);
