@@ -13,6 +13,7 @@
  * Copyright (c) [2025] [saphieron]
  */
 
+#include <stdint.h>
 
  // Vertical bitmaps, A-Z, 0-9. Each is 8 pixels high and wide
  // These are defined vertically to make them quick to copy to FB

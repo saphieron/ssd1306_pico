@@ -68,4 +68,26 @@
 #define SSD1306_WRITE_MODE         0xFE
 #define SSD1306_READ_MODE          0xFF
 
+
+typedef struct render_area {
+    uint8_t start_col;
+    uint8_t end_col;
+    uint8_t start_page;
+    uint8_t end_page;
+
+    int buflen;
+} ssd1306_render_area_t;
+
+
+void SSD1306_init(uint8_t dev_addr);
+void SSD1306_send_cmd(uint8_t dev_addr, uint8_t cmd);
+void SSD1306_send_cmd_list(uint8_t dev_addr, uint8_t* buf, int num);
+void SSD1306_scroll(uint8_t dev_addr, bool on);
+void SSD1306_render_area(uint8_t dev_addr, uint8_t* buf, ssd1306_render_area_t* area);
+void SSD1306_set_pixel(uint8_t* buf, int x, int y, bool on);
+void SSD1306_draw_line(uint8_t* buf, int x0, int y0, int x1, int y1, bool on);
+void SSD1306_write_char_at(uint8_t* buf, int16_t x, int16_t y, uint8_t ch);
+void SSD1306_write_string_at(uint8_t* buf, int16_t x, int16_t y, char* str);
+void SSD1306_get_buflen_from_render_area(ssd1306_render_area_t* area);
+
 #endif /* SSD1306_H */

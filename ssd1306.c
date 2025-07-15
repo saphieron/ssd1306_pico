@@ -14,12 +14,12 @@
  */
 
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
+#include <stdbool.h>
+#include <string.h>
 #include <ctype.h>
- // #include "pico/stdlib.h"
- // #include "pico/binary_info.h"
- // #include "hardware/i2c.h"
+#include <assert.h>
+
 #include "ssd1306.h"
 #include "ssd1306_font.h"
 
@@ -45,36 +45,22 @@
    GND (pin 38)  -> GND on display board
 */
 
-struct render_area {
-    uint8_t start_col;
-    uint8_t end_col;
-    uint8_t start_page;
-    uint8_t end_page;
-
-    int buflen;
-};
-
-void calc_render_area_buflen(struct render_area* area) {
-    // calculate how long the flattened buffer will be for a render area
-    area->buflen = (area->end_col - area->start_col + 1) * (area->end_page - area->start_page + 1);
-}
-
-void SSD1306_send_cmd(uint8_t cmd) {
+void SSD1306_send_cmd(uint8_t dev_addr, uint8_t cmd) {
     // I2C write process expects a control byte followed by data
     // this "data" can be a command or data to follow up a command
     // Co = 1, D/C = 0 => the driver expects a command
     uint8_t buf[2] = { 0x80, cmd };
     // i2c_write_blocking(i2c_default, SSD1306_I2C_ADDR, buf, 2, false);
-    i2c_handler_write(SSD1306_I2C_ADDR, buf, 2);
+    i2c_handler_write(dev_addr, buf, 2);
 }
 
-void SSD1306_send_cmd_list(uint8_t* buf, int num) {
+void SSD1306_send_cmd_list(uint8_t dev_addr, uint8_t* buf, int num) {
     for (int i = 0;i < num;i++) {
-        SSD1306_send_cmd(buf[i]);
+        SSD1306_send_cmd(dev_addr, buf[i]);
     }
 }
 
-void SSD1306_send_buf(uint8_t buf[], int buflen) {
+void SSD1306_send_buf(uint8_t dev_addr, uint8_t buf[], int buflen) {
     // in horizontal addressing mode, the column address pointer auto-increments
     // and then wraps around to the next page, so we can send the entire frame
     // buffer in one gooooooo!
@@ -92,7 +78,11 @@ void SSD1306_send_buf(uint8_t buf[], int buflen) {
     free(temp_buf);
 }
 
-void SSD1306_init() {
+#ifndef count_of
+#define count_of(a) (sizeof(a)/sizeof((a)[0]))
+#endif
+
+void SSD1306_init(uint8_t dev_addr) {
     // Some of these commands are not strictly necessary as the reset
     // process defaults to some of these but they are shown here
     // to demonstrate what the initialization sequence looks like
@@ -141,10 +131,10 @@ void SSD1306_init() {
         SSD1306_SET_DISP | 0x01, // turn display on
     };
 
-    SSD1306_send_cmd_list(cmds, count_of(cmds));
+    SSD1306_send_cmd_list(dev_addr, cmds, count_of(cmds));
 }
 
-void SSD1306_scroll(bool on) {
+void SSD1306_scroll(uint8_t dev_addr, bool on) {
     // configure horizontal scrolling
     //TODO: reevaluate what this is meant to be saying.
     uint8_t cmds[] = {
@@ -158,11 +148,11 @@ void SSD1306_scroll(bool on) {
         SSD1306_SET_SCROLL | (on ? 0x01 : 0) // Start/stop scrolling
     };
 
-    SSD1306_send_cmd_list(cmds, count_of(cmds));
+    SSD1306_send_cmd_list(dev_addr, cmds, count_of(cmds));
 }
 
 //TODO: refactor to better public name
-void render(uint8_t* buf, struct render_area* area) {
+void SSD1306_render_area(uint8_t dev_addr, uint8_t* buf, ssd1306_render_area_t* area) {
     // update a portion of the display with a render area
     uint8_t cmds[] = {
         SSD1306_SET_COL_ADDR,
@@ -173,11 +163,12 @@ void render(uint8_t* buf, struct render_area* area) {
         area->end_page
     };
 
-    SSD1306_send_cmd_list(cmds, count_of(cmds));
-    SSD1306_send_buf(buf, area->buflen);
+    SSD1306_send_cmd_list(dev_addr, cmds, count_of(cmds));
+    SSD1306_send_buf(dev_addr, buf, area->buflen);
 }
 
-static void SetPixel(uint8_t* buf, int x, int y, bool on) {
+//Set the pixel in a given buffer that is then passed on to the display
+void SSD1306_set_pixel(uint8_t* buf, int x, int y, bool on) {
     assert(x >= 0 && x < SSD1306_WIDTH && y >= 0 && y < SSD1306_HEIGHT);
 
     // The calculation to determine the correct bit to set depends on which address
@@ -208,7 +199,7 @@ static void SetPixel(uint8_t* buf, int x, int y, bool on) {
 
 // Basic Bresenhams.
 //TODO: refactor name
-static void DrawLine(uint8_t* buf, int x0, int y0, int x1, int y1, bool on) {
+void SSD1306_draw_line(uint8_t* buf, int x0, int y0, int x1, int y1, bool on) {
 
     int dx = abs(x1 - x0);
     int sx = x0 < x1 ? 1 : -1;
@@ -218,7 +209,7 @@ static void DrawLine(uint8_t* buf, int x0, int y0, int x1, int y1, bool on) {
     int e2;
 
     while (true) {
-        SetPixel(buf, x0, y0, on);
+        SSD1306_set_pixel(buf, x0, y0, on);
         if (x0 == x1 && y0 == y1)
             break;
         e2 = 2 * err;
@@ -236,7 +227,7 @@ static void DrawLine(uint8_t* buf, int x0, int y0, int x1, int y1, bool on) {
 
 //TODO: create more letters for lower case
 //TODO: also figure out if there's a nicer way to write this
-static inline int GetFontIndex(uint8_t ch) {
+static inline int get_font_index(uint8_t ch) {
     if (ch >= 'A' && ch <= 'Z') {
         return  ch - 'A' + 1;
     } else if (ch >= '0' && ch <= '9') {
@@ -244,15 +235,15 @@ static inline int GetFontIndex(uint8_t ch) {
     } else return  0; // Not got that char so space.
 }
 
-static void WriteChar(uint8_t* buf, int16_t x, int16_t y, uint8_t ch) {
+void SSD1306_write_char_at(uint8_t* buf, int16_t x, int16_t y, uint8_t ch) {
     if (x > SSD1306_WIDTH - 8 || y > SSD1306_HEIGHT - 8)
         return;
 
     // For the moment, only write on Y row boundaries (every 8 vertical pixels)
     y = y / 8;
 
-    ch = toupper(ch);
-    int idx = GetFontIndex(ch);
+    ch = toupper(ch); //TODO: assume also supporting lower case letters
+    int idx = get_font_index(ch);
     int fb_idx = y * 128 + x;
 
     for (int i = 0;i < 8;i++) {
@@ -260,127 +251,20 @@ static void WriteChar(uint8_t* buf, int16_t x, int16_t y, uint8_t ch) {
     }
 }
 
-static void WriteString(uint8_t* buf, int16_t x, int16_t y, char* str) {
+void SSD1306_write_string_at(uint8_t* buf, int16_t x, int16_t y, char* str) {
     // Cull out any string off the screen
     if (x > SSD1306_WIDTH - 8 || y > SSD1306_HEIGHT - 8)
         return;
 
     while (*str) {
-        WriteChar(buf, x, y, *str++);
+        SSD1306_write_char_at(buf, x, y, *str++);
         x += 8;
     }
 }
 
 
+void SSD1306_get_buflen_from_render_area(ssd1306_render_area_t* area) {
+    // calculate how long the flattened buffer will be for a render area
+    area->buflen = (area->end_col - area->start_col + 1) * (area->end_page - area->start_page + 1);
+}
 
-
-// int main() {
-    // stdio_init_all();
-
-//     // useful information for picotool
-//     bi_decl(bi_2pins_with_func(PICO_DEFAULT_I2C_SDA_PIN, PICO_DEFAULT_I2C_SCL_PIN, GPIO_FUNC_I2C));
-//     bi_decl(bi_program_description("SSD1306 OLED driver I2C example for the Raspberry Pi Pico"));
-
-//     printf("Hello, SSD1306 OLED display! Look at my raspberries..\n");
-
-//     // I2C is "open drain", pull ups to keep signal high when no data is being
-//     // sent
-//     i2c_init(i2c_default, SSD1306_I2C_CLK * 1000);
-//     gpio_set_function(PICO_DEFAULT_I2C_SDA_PIN, GPIO_FUNC_I2C);
-//     gpio_set_function(PICO_DEFAULT_I2C_SCL_PIN, GPIO_FUNC_I2C);
-//     gpio_pull_up(PICO_DEFAULT_I2C_SDA_PIN);
-//     gpio_pull_up(PICO_DEFAULT_I2C_SCL_PIN);
-
-//     // run through the complete initialization process
-//     SSD1306_init();
-
-//     // Initialize render area for entire frame (SSD1306_WIDTH pixels by SSD1306_NUM_PAGES pages)
-//     struct render_area frame_area = {
-//         start_col: 0,
-//         end_col : SSD1306_WIDTH - 1,
-//         start_page : 0,
-//         end_page : SSD1306_NUM_PAGES - 1
-//     };
-
-//     calc_render_area_buflen(&frame_area);
-
-//     // zero the entire display
-//     uint8_t buf[SSD1306_BUF_LEN];
-//     memset(buf, 0, SSD1306_BUF_LEN);
-//     render(buf, &frame_area);
-
-//     // intro sequence: flash the screen 3 times
-//     for (int i = 0; i < 3; i++) {
-//         SSD1306_send_cmd(SSD1306_SET_ALL_ON);    // Set all pixels on
-//         sleep_ms(500);
-//         SSD1306_send_cmd(SSD1306_SET_ENTIRE_ON); // go back to following RAM for pixel state
-//         sleep_ms(500);
-//     }
-
-//     // render 3 cute little raspberries
-//     struct render_area area = {
-//         start_page: 0,
-//         end_page : (IMG_HEIGHT / SSD1306_PAGE_HEIGHT) - 1
-//     };
-
-// restart:
-
-//     area.start_col = 0;
-//     area.end_col = IMG_WIDTH - 1;
-
-//     calc_render_area_buflen(&area);
-
-//     uint8_t offset = 5 + IMG_WIDTH; // 5px padding
-
-//     for (int i = 0; i < 3; i++) {
-//         render(raspberry26x32, &area);
-//         area.start_col += offset;
-//         area.end_col += offset;
-//     }
-
-//     SSD1306_scroll(true);
-//     sleep_ms(5000);
-//     SSD1306_scroll(false);
-
-//     char* text[] = {
-//         "A long time ago",
-//         "  on an OLED ",
-//         "   display",
-//         " far far away",
-//         "Lived a small",
-//         "red raspberry",
-//         "by the name of",
-//         "    PICO"
-//     };
-
-//     int y = 0;
-//     for (uint i = 0;i < count_of(text); i++) {
-//         WriteString(buf, 5, y, text[i]);
-//         y += 8;
-//     }
-//     render(buf, &frame_area);
-
-//     // Test the display invert function
-//     sleep_ms(3000);
-//     SSD1306_send_cmd(SSD1306_SET_INV_DISP);
-//     sleep_ms(3000);
-//     SSD1306_send_cmd(SSD1306_SET_NORM_DISP);
-
-//     bool pix = true;
-//     for (int i = 0; i < 2;i++) {
-//         for (int x = 0;x < SSD1306_WIDTH;x++) {
-//             DrawLine(buf, x, 0, SSD1306_WIDTH - 1 - x, SSD1306_HEIGHT - 1, pix);
-//             render(buf, &frame_area);
-//         }
-
-//         for (int y = SSD1306_HEIGHT - 1; y >= 0;y--) {
-//             DrawLine(buf, 0, y, SSD1306_WIDTH - 1, SSD1306_HEIGHT - 1 - y, pix);
-//             render(buf, &frame_area);
-//         }
-//         pix = false;
-//     }
-
-//     goto restart;
-
-//     return 0;
-// }

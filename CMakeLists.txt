@@ -35,7 +35,7 @@ pico_sdk_init()
 
 # Add executable. Default name is the project name, version 0.1
 
-add_executable(ssd1306_pico integration_test/ssd1306_pico.c )
+add_executable(ssd1306_pico integration_test/integration_test.c integration_test/i2c_handler.c)
 
 pico_set_program_name(ssd1306_pico "ssd1306_pico")
 pico_set_program_version(ssd1306_pico "0.1")
@@ -46,18 +46,39 @@ pico_enable_stdio_usb(ssd1306_pico 1)
 
 # Add the standard library to the build
 target_link_libraries(ssd1306_pico
-        pico_stdlib)
+    pico_stdlib
+)
 
 # Add the standard include files to the build
 target_include_directories(ssd1306_pico PRIVATE
-        ${CMAKE_CURRENT_LIST_DIR}
+    ${CMAKE_CURRENT_LIST_DIR}
 )
 
 # Add any user requested libraries
 target_link_libraries(ssd1306_pico 
-        hardware_i2c
-        
-        )
+    hardware_i2c
+    ssd1306_lib
+)
 
 pico_add_extra_outputs(ssd1306_pico)
 
+
+#############################################
+# ssd1306 lib targets
+#############################################
+
+add_library(ssd1306_lib STATIC
+    ssd1306.c
+    ssd1306_font.c
+)
+
+target_link_libraries(ssd1306_lib
+    pico_stdlib
+    pico_time
+    hardware_i2c
+)
+
+# Add the standard include files to the build
+target_include_directories(ssd1306_lib PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}
+)
