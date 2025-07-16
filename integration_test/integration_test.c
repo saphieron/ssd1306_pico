@@ -162,12 +162,7 @@ void test_inversion() {
     SSD1306_send_raw_cmd(SSD1306_I2C_ADDR, SSD1306_SET_INV_DISP);
     sleep_ms(3000);
     SSD1306_send_raw_cmd(SSD1306_I2C_ADDR, SSD1306_SET_NORM_DISP);
-
 }
-
-
-
-
 
 char* test_text = "A SUNSET BLOOM\n\
 \n\
@@ -261,6 +256,5 @@ void run_string_test() {
 
         SSD1306_clear_area(SSD1306_I2C_ADDR, buf, &complete_display_area);
         sleep_ms(2000);
-
     }
 }

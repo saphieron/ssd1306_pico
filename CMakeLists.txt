@@ -56,7 +56,7 @@ target_include_directories(ssd1306_pico PRIVATE
 )
 
 # Add any user requested libraries
-target_link_libraries(ssd1306_pico 
+target_link_libraries(ssd1306_pico
     hardware_i2c
     ssd1306_lib
 )
@@ -78,6 +78,8 @@ target_link_libraries(ssd1306_lib
     pico_time
     hardware_i2c
 )
+
+target_compile_definitions(ssd1306_lib PRIVATE USE_ASCII_FONT=1)
 
 # Add the standard include files to the build
 target_include_directories(ssd1306_lib PRIVATE

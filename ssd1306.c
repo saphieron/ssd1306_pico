@@ -23,6 +23,12 @@
 #include "ssd1306.h"
 #include "ssd1306_font.h"
 
+#ifdef USE_ASCII_FONT
+#define FONT_TO_USE ascii_font
+#else
+#define FONT_TO_USE simple_font
+#endif //USE_ASCII_FONT
+
 
  /* Example code to talk to an SSD1306-based OLED display
 
@@ -93,7 +99,7 @@ void SSD1306_send_buf(uint8_t dev_addr, uint8_t buf[], int buflen) {
 int32_t SSD1306_init(uint8_t dev_addr, uint8_t screen_width, uint8_t screen_height) {
 
     // TODO: give unnamed constants a name.
-    // TODO: check if the bit masking is strictly necessary, or it couldn't just be another constant 
+    // TODO: check if the bit masking is strictly necessary, or it couldn't just be another constant
     uint8_t screen_size_config_value = 0x02;
     if (screen_width != 128) {
         return SSD1306_ERROR_SCREEN_WIDTH_NOT_SUPPORTED;
@@ -238,12 +244,16 @@ void SSD1306_draw_line(uint8_t* buf, int x0, int y0, int x1, int y1, bool on) {
 
 //TODO: create more letters for lower case
 //TODO: also figure out if there's a nicer way to write this
-static inline int get_font_index(uint8_t ch) {
+static inline int get_font_index(char ch) {
+#ifdef USE_ASCII_FONT
+    return ch;
+#else
     if (ch >= 'A' && ch <= 'Z') {
         return  ch - 'A' + 1;
     } else if (ch >= '0' && ch <= '9') {
         return  ch - '0' + 27;
     } else return  0; // Not got that char so space.
+#endif //USE_ASCII_FONT
 }
 
 void SSD1306_write_char_at(uint8_t* buf, int16_t x, int16_t y, uint8_t ch) {
@@ -258,7 +268,7 @@ void SSD1306_write_char_at(uint8_t* buf, int16_t x, int16_t y, uint8_t ch) {
     int fb_idx = y * 128 + x;
 
     for (int i = 0;i < 8;i++) {
-        buf[fb_idx++] = simple_font[idx * 8 + i];
+        buf[fb_idx++] = FONT_TO_USE[idx * 8 + i];
     }
 }
 
