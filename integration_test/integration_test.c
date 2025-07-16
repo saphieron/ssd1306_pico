@@ -18,12 +18,13 @@
 
 int run_hardware_test();
 void run_string_test();
+void run_font_test();
 
 void test_render_image(uint8_t* buf, ssd1306_render_area_t* area, ssd1306_render_area_t* image);
 void test_write_string(uint8_t* buf, ssd1306_render_area_t* area);
 void test_inversion();
 void test_draw_lines(uint8_t* buf, ssd1306_render_area_t* complete_display_area);
-
+void render_page_through_string(char* text, uint8_t* buf, ssd1306_render_area_t* complete_display_area);
 
 int main() {
     stdio_init_all();
@@ -40,7 +41,8 @@ int main() {
     printf("initialised ssd1306\n");
 
     // run_hardware_test();
-    run_string_test();
+    // run_string_test();
+    run_font_test();
     return 0;
 }
 
@@ -189,6 +191,119 @@ void run_string_test() {
     //TODO: if this doesnt work with the buflen, go back to the hardcoded max buffer size
     // zero the entire display
     uint8_t buf[complete_display_area.buflen];
+    // SSD1306_clear_area(SSD1306_I2C_ADDR, buf, &complete_display_area);
+
+    // SSD1306_send_raw_cmd(SSD1306_I2C_ADDR, SSD1306_SET_ALL_ON);    // Set all pixels on
+    // sleep_ms(500);
+    // SSD1306_send_raw_cmd(SSD1306_I2C_ADDR, SSD1306_SET_ENTIRE_ON); // go back to following RAM for pixel state
+    // sleep_ms(500);
+
+    while (1) {
+        SSD1306_clear_area(SSD1306_I2C_ADDR, buf, &complete_display_area);
+
+        SSD1306_send_raw_cmd(SSD1306_I2C_ADDR, SSD1306_SET_ALL_ON);    // Set all pixels on
+        sleep_ms(500);
+        SSD1306_send_raw_cmd(SSD1306_I2C_ADDR, SSD1306_SET_ENTIRE_ON); // go back to following RAM for pixel state
+        sleep_ms(500);
+
+        render_page_through_string(test_text, buf, &complete_display_area);
+    }
+}
+
+void render_page_through_string(char* text, uint8_t* buf, ssd1306_render_area_t* complete_display_area) {
+    char screen_content[4][17];
+    memset(screen_content, 0, sizeof(screen_content));
+
+    uint8_t screen_line = 0;
+
+    uint16_t pos_in_text = 0;
+    uint16_t line_start_point = 0;
+    uint16_t length_to_copy;
+    bool partiallyFullScreenContent = false;
+    bool copiedFullIgnoreLinebreak = false;
+    while (text[pos_in_text] != 0) {
+        length_to_copy = pos_in_text - line_start_point + 1;
+        printf("%c/%u\n", text[pos_in_text], length_to_copy);
+        if (text[pos_in_text] == '\n') {
+            // TODO: the newline is copied over, not processed properly, and also not ignored
+
+            if (length_to_copy == 1 && copiedFullIgnoreLinebreak) {
+                copiedFullIgnoreLinebreak = false;
+                pos_in_text++;
+                line_start_point = pos_in_text;
+                continue;
+            }
+            strncpy(screen_content[screen_line], text + line_start_point, length_to_copy - 1);
+            line_start_point += length_to_copy;
+
+            memset(screen_content[screen_line] + length_to_copy - 1, '\0', 17 - length_to_copy + 1);
+            ++screen_line;
+            ++pos_in_text;
+            length_to_copy = 0;
+            partiallyFullScreenContent = true;
+        }
+
+        if (length_to_copy == 16) {
+            strncpy(screen_content[screen_line], text + line_start_point, 16);
+            line_start_point += 16;
+            screen_content[screen_line][16] = '\0';
+            ++screen_line;
+            copiedFullIgnoreLinebreak = true;
+            length_to_copy = 0;
+            partiallyFullScreenContent = true;
+        }
+
+        if (screen_line >= 4) {
+            printf("rendering text:\n1'%s'\n2'%s'\n3'%s'\n4'%s'\n", screen_content[0], screen_content[1], screen_content[2], screen_content[3]);
+            uint8_t y = 0;
+            for (size_t i = 0; i < 4; i++) {
+                SSD1306_write_string_at(buf, 0, y, screen_content[i]);
+                y += 8;
+            }
+            SSD1306_render_area(SSD1306_I2C_ADDR, buf, complete_display_area);
+            sleep_ms(5000);
+            screen_line = 0;
+            memset(screen_content, 0, sizeof(screen_content));
+            partiallyFullScreenContent = false;
+        }
+        ++pos_in_text;
+    }
+    if (partiallyFullScreenContent) {
+        SSD1306_clear_area(SSD1306_I2C_ADDR, buf, complete_display_area);
+        strncpy(screen_content[screen_line], text + line_start_point, 16);
+        printf("final rendering text:\n1'%s'\n2'%s'\n3'%s'\n4'%s'\n", screen_content[0], screen_content[1], screen_content[2], screen_content[3]);
+        uint8_t y = 0;
+        for (size_t i = 0; i < screen_line; i++) {
+            SSD1306_write_string_at(buf, 0, y, screen_content[i]);
+            y += 8;
+        }
+        SSD1306_render_area(SSD1306_I2C_ADDR, buf, complete_display_area);
+    } else {
+        printf("No rest to render: pos_in_text %u, length_to_copy %u, screen_line %u\n", pos_in_text, length_to_copy, screen_line);
+    }
+    sleep_ms(5000);
+
+    SSD1306_clear_area(SSD1306_I2C_ADDR, buf, complete_display_area);
+}
+
+void run_font_test() {
+    ssd1306_render_area_t complete_display_area = {
+        start_col: 0,
+    end_col : SSD1306_WIDTH - 1,
+    start_page : 0,
+    end_page : SSD1306_NUM_PAGES - 1
+    };
+
+    SSD1306_get_buflen_from_render_area(&complete_display_area);
+    char dummyText[97];
+    memset(dummyText, 0, 97);
+    for (size_t i = 32; i < 128; i++) {
+        dummyText[i - 32] = ((char)i);
+    }
+
+    //TODO: if this doesnt work with the buflen, go back to the hardcoded max buffer size
+    // zero the entire display
+    uint8_t buf[complete_display_area.buflen];
     SSD1306_clear_area(SSD1306_I2C_ADDR, buf, &complete_display_area);
 
     SSD1306_send_raw_cmd(SSD1306_I2C_ADDR, SSD1306_SET_ALL_ON);    // Set all pixels on
@@ -197,64 +312,16 @@ void run_string_test() {
     sleep_ms(500);
 
     while (1) {
-        char screen_content[4][17];
-        memset(screen_content, 0, sizeof(screen_content));
-
-        uint8_t screen_line = 0;
-
-        uint16_t pos_in_text = 0;
-        uint16_t line_start_point = 0;
-        uint16_t length_to_copy;
-        bool copiedFullIgnoreLinebreak = false;
-        while (test_text[pos_in_text] != 0) {
-            length_to_copy = pos_in_text - line_start_point + 1;
-            if (test_text[pos_in_text] == '\n') {
-                // TODO: the newline is copied over, not processed properly, and also not ignored
-
-                if (length_to_copy == 1 && copiedFullIgnoreLinebreak) {
-                    copiedFullIgnoreLinebreak = false;
-                    pos_in_text++;
-                    line_start_point = pos_in_text;
-                    continue;
-                }
-                strncpy(screen_content[screen_line], test_text + line_start_point, length_to_copy - 1);
-                line_start_point += length_to_copy;
-
-                memset(screen_content[screen_line] + length_to_copy - 1, '\0', 17 - length_to_copy + 1);
-                ++screen_line;
-                ++pos_in_text;
-                length_to_copy = 0;
-                continue;
-            }
-
-            if (length_to_copy == 16) {
-                strncpy(screen_content[screen_line], test_text + line_start_point, 16);
-                line_start_point += 16;
-                screen_content[screen_line][16] = '\0';
-                ++screen_line;
-                copiedFullIgnoreLinebreak = true;
-                length_to_copy = 0;
-            }
-
-            if (screen_line >= 4) {
-                printf("rendering text:\n1'%s'\n2'%s'\n3'%s'\n4'%s'\n", screen_content[0], screen_content[1], screen_content[2], screen_content[3]);
-                uint8_t y = 0;
-                for (size_t i = 0; i < 4; i++) {
-                    SSD1306_write_string_at(buf, 0, y, screen_content[i]);
-                    y += 8;
-                }
-                SSD1306_render_area(SSD1306_I2C_ADDR, buf, &complete_display_area);
-                sleep_ms(5000);
-                screen_line = 0;
-            }
-            ++pos_in_text;
-        }
-        if (length_to_copy != 0) {
-            strncpy(screen_content[screen_line], test_text + line_start_point, 16);
-            printf("rendering text:\n1'%s'\n2'%s'\n3'%s'\n4'%s'\n", screen_content[0], screen_content[1], screen_content[2], screen_content[3]);
-        }
-
+        printf("dummy text '%s'\n", dummyText);
         SSD1306_clear_area(SSD1306_I2C_ADDR, buf, &complete_display_area);
-        sleep_ms(2000);
+
+        SSD1306_send_raw_cmd(SSD1306_I2C_ADDR, SSD1306_SET_ALL_ON);    // Set all pixels on
+        sleep_ms(500);
+        SSD1306_send_raw_cmd(SSD1306_I2C_ADDR, SSD1306_SET_ENTIRE_ON); // go back to following RAM for pixel state
+        sleep_ms(500);
+
+        render_page_through_string(dummyText, buf, &complete_display_area);
+
+        printf("\nend of loop\n");
     }
 }

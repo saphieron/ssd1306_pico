@@ -25,8 +25,10 @@
 
 #ifdef USE_ASCII_FONT
 #define FONT_TO_USE ascii_font
+#pragma message "using ascii font"
 #else
 #define FONT_TO_USE simple_font
+#pragma message "using simple_font"
 #endif //USE_ASCII_FONT
 
 
@@ -248,6 +250,7 @@ static inline int get_font_index(char ch) {
 #ifdef USE_ASCII_FONT
     return ch;
 #else
+    ch = toupper(ch);
     if (ch >= 'A' && ch <= 'Z') {
         return  ch - 'A' + 1;
     } else if (ch >= '0' && ch <= '9') {
@@ -263,7 +266,7 @@ void SSD1306_write_char_at(uint8_t* buf, int16_t x, int16_t y, uint8_t ch) {
     // For the moment, only write on Y row boundaries (every 8 vertical pixels)
     y = y / 8;
 
-    ch = toupper(ch); //TODO: assume also supporting lower case letters
+    // ch = toupper(ch); //TODO: assume also supporting lower case letters
     int idx = get_font_index(ch);
     int fb_idx = y * 128 + x;
 
