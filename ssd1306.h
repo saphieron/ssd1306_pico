@@ -96,6 +96,7 @@ void SSD1306_send_raw_cmd(uint8_t dev_addr, uint8_t cmd);
 void SSD1306_send_raw_cmd_list(uint8_t dev_addr, uint8_t* buf, int num);
 void SSD1306_set_scrolling(uint8_t dev_addr, bool on);
 void SSD1306_render_area(uint8_t dev_addr, uint8_t* buf, ssd1306_render_area_t* area);
+void SSD1306_clear_area(uint8_t dev_addr, uint8_t* buf, ssd1306_render_area_t* area);
 void SSD1306_set_pixel(uint8_t* buf, int x, int y, bool on);
 void SSD1306_draw_line(uint8_t* buf, int x0, int y0, int x1, int y1, bool on);
 void SSD1306_write_char_at(uint8_t* buf, int16_t x, int16_t y, uint8_t ch);

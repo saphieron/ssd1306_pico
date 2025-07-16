@@ -177,6 +177,11 @@ void SSD1306_render_area(uint8_t dev_addr, uint8_t* buf, ssd1306_render_area_t* 
     SSD1306_send_buf(dev_addr, buf, area->buflen);
 }
 
+void SSD1306_clear_area(uint8_t dev_addr, uint8_t* buf, ssd1306_render_area_t* area) {
+    memset(buf, 0, area->buflen);
+    SSD1306_render_area(dev_addr, buf, area);
+}
+
 //Set the pixel in a given buffer that is then passed on to the display
 void SSD1306_set_pixel(uint8_t* buf, int x, int y, bool on) {
     assert(x >= 0 && x < SSD1306_WIDTH && y >= 0 && y < SSD1306_HEIGHT);
@@ -191,9 +196,6 @@ void SSD1306_set_pixel(uint8_t* buf, int x, int y, bool on) {
 
     // This code could be optimised, but is like this for clarity. The compiler
     // should do a half decent job optimising it anyway.
-
-    //TODO: figure out what there is to optimise
-
     const int BytesPerRow = SSD1306_WIDTH; // x pixels, 1bpp, but each row is 8 pixel high, so (x / 8) * 8
 
     int byte_idx = (y / 8) * BytesPerRow + x;
@@ -208,7 +210,6 @@ void SSD1306_set_pixel(uint8_t* buf, int x, int y, bool on) {
 }
 
 // Basic Bresenhams.
-//TODO: refactor name
 void SSD1306_draw_line(uint8_t* buf, int x0, int y0, int x1, int y1, bool on) {
 
     int dx = abs(x1 - x0);
