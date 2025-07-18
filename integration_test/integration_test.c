@@ -41,8 +41,8 @@ int main() {
     printf("initialised ssd1306\n");
 
     // run_hardware_test();
-    // run_string_test();
-    run_font_test();
+    run_string_test();
+    // run_font_test();
     return 0;
 }
 
@@ -201,8 +201,8 @@ void run_string_test() {
     while (1) {
         SSD1306_clear_area(SSD1306_I2C_ADDR, buf, &complete_display_area);
 
-        SSD1306_send_raw_cmd(SSD1306_I2C_ADDR, SSD1306_SET_ALL_ON);    // Set all pixels on
-        sleep_ms(500);
+        // SSD1306_send_raw_cmd(SSD1306_I2C_ADDR, SSD1306_SET_ALL_ON);    // Set all pixels on
+        // sleep_ms(500);
         SSD1306_send_raw_cmd(SSD1306_I2C_ADDR, SSD1306_SET_ENTIRE_ON); // go back to following RAM for pixel state
         sleep_ms(500);
 
@@ -306,8 +306,8 @@ void run_font_test() {
     uint8_t buf[complete_display_area.buflen];
     SSD1306_clear_area(SSD1306_I2C_ADDR, buf, &complete_display_area);
 
-    SSD1306_send_raw_cmd(SSD1306_I2C_ADDR, SSD1306_SET_ALL_ON);    // Set all pixels on
-    sleep_ms(500);
+    // SSD1306_send_raw_cmd(SSD1306_I2C_ADDR, SSD1306_SET_ALL_ON);    // Set all pixels on
+    // sleep_ms(500);
     SSD1306_send_raw_cmd(SSD1306_I2C_ADDR, SSD1306_SET_ENTIRE_ON); // go back to following RAM for pixel state
     sleep_ms(500);
 

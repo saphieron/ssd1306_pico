@@ -22,6 +22,6 @@
  // These are defined vertically to make them quick to copy to FB
 
 extern uint8_t simple_font[];
-extern uint8_t ascii_font[];
+extern uint8_t ascii_column_font[];
 
 #endif //SSD1306_FONT_H

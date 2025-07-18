@@ -24,7 +24,7 @@
 #include "ssd1306_font.h"
 
 #ifdef USE_ASCII_FONT
-#define FONT_TO_USE ascii_font
+#define FONT_TO_USE ascii_column_font
 #pragma message "using ascii font"
 #else
 #define FONT_TO_USE simple_font
@@ -145,7 +145,7 @@ int32_t SSD1306_init(uint8_t dev_addr, uint8_t screen_width, uint8_t screen_heig
         SSD1306_SET_CHARGE_PUMP,        // set charge pump
         SSD1306_CHARGE_PUMP_VCC_INTERNAL, // Vcc internally generated on our board
         SSD1306_SET_SCROLL | 0x00,      // deactivate horizontal scrolling if set. This is necessary as memory writes will corrupt if scrolling was enabled
-        SSD1306_SET_DISP | 0x01, // turn display on
+        SSD1306_SET_DISP | 0x01,        // turn display on
     };
 
     SSD1306_send_raw_cmd_list(dev_addr, cmds, count_of(cmds));
