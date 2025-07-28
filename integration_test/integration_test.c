@@ -212,7 +212,7 @@ void run_string_test() {
 
 void render_page_through_string(char* text, uint8_t* buf, ssd1306_render_area_t* complete_display_area) {
     char screen_content[4][17];
-    memset(screen_content, 0, sizeof(screen_content));
+    memset(screen_content, 0x00, sizeof(screen_content));
 
     uint8_t screen_line = 0;
 
@@ -222,8 +222,9 @@ void render_page_through_string(char* text, uint8_t* buf, ssd1306_render_area_t*
     bool partiallyFullScreenContent = false;
     bool copiedFullIgnoreLinebreak = false;
     while (text[pos_in_text] != 0) {
+        // char currentChar = text[pos_in_text];
         length_to_copy = pos_in_text - line_start_point + 1;
-        printf("%c/%u\n", text[pos_in_text], length_to_copy);
+        // printf("%c/%u\n", currentChar, length_to_copy);
         if (text[pos_in_text] == '\n') {
             // TODO: the newline is copied over, not processed properly, and also not ignored
 
@@ -236,9 +237,9 @@ void render_page_through_string(char* text, uint8_t* buf, ssd1306_render_area_t*
             strncpy(screen_content[screen_line], text + line_start_point, length_to_copy - 1);
             line_start_point += length_to_copy;
 
-            memset(screen_content[screen_line] + length_to_copy - 1, '\0', 17 - length_to_copy + 1);
+            memset(screen_content[screen_line] + length_to_copy - 1, ' ', 17 - length_to_copy); // 0 char also looks empty, i.e. like space
+            screen_content[screen_line][16] = '\0';
             ++screen_line;
-            ++pos_in_text;
             length_to_copy = 0;
             partiallyFullScreenContent = true;
         }
