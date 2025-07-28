@@ -248,6 +248,9 @@ void SSD1306_draw_line(uint8_t* buf, int x0, int y0, int x1, int y1, bool on) {
 //TODO: also figure out if there's a nicer way to write this
 static inline int get_font_index(char ch) {
 #ifdef USE_ASCII_FONT
+    if(ch > 127){
+        return 0;
+    }
     return ch;
 #else
     ch = toupper(ch);
