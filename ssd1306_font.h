@@ -17,6 +17,7 @@
 #ifndef SSD1306_FONT_H
 #define SSD1306_FONT_H
 
+#define SSD1306_SIMPLE_FONT_LINE_HEIGHT 8 //line height in pixel
 
  // Vertical bitmaps, A-Z, 0-9. Each is 8 pixels high and wide
  // These are defined vertically to make them quick to copy to FB
