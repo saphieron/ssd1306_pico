@@ -77,30 +77,46 @@
 #define SSD1306_CHARGE_PUMP_VCC_INTERNAL 0x14
 
 //Errors
+#define SSD1306_ERROR_NO_ERROR 0
 #define SSD1306_ERROR_SCREEN_WIDTH_NOT_SUPPORTED -1
 #define SSD1306_ERROR_SCREEN_HEIGHT_NOT_SUPPORTED -2
 
-
-typedef struct render_area {
+typedef struct render_area_type {
     uint8_t start_col;
     uint8_t end_col;
     uint8_t start_page;
     uint8_t end_page;
-
-    int buflen;
 } ssd1306_render_area_t;
 
+typedef struct ssd1306_device {
+    uint8_t address;
+    uint8_t* buffer;
+    size_t bufferLength;
+    uint8_t width;
+    uint8_t height;
+    ssd1306_render_area_t renderArea;
 
-int32_t SSD1306_init(uint8_t dev_addr, uint8_t screen_width, uint8_t screen_height);
-void SSD1306_send_raw_cmd(uint8_t dev_addr, uint8_t cmd);
-void SSD1306_send_raw_cmd_list(uint8_t dev_addr, uint8_t* buf, int num);
-void SSD1306_set_scrolling(uint8_t dev_addr, bool on);
-void SSD1306_render_area(uint8_t dev_addr, uint8_t* buf, ssd1306_render_area_t* area);
-void SSD1306_clear_area(uint8_t dev_addr, uint8_t* buf, ssd1306_render_area_t* area);
-void SSD1306_set_pixel(uint8_t* buf, int x, int y, bool on);
-void SSD1306_draw_line(uint8_t* buf, int x0, int y0, int x1, int y1, bool on);
-void SSD1306_write_char_at(uint8_t* buf, int16_t x, int16_t y, uint8_t ch);
-void SSD1306_write_string_at(uint8_t* buf, int16_t x, int16_t y, char* str);
-void SSD1306_get_buflen_from_render_area(ssd1306_render_area_t* area);
+    int32_t lastError;
+} ssd1306_device_t;
+
+
+size_t SSD1306_deriveBufferSizeFromScreenSize(uint8_t width, uint8_t height);
+ssd1306_render_area_t SSD1306_customRenderArea(uint8_t startX, uint8_t startY, uint8_t endX, uint8_t endY);
+ssd1306_render_area_t SSD1306_getDefaultFullRenderArea(uint8_t screen_width, uint8_t screen_height);
+
+void SSD1306_init(ssd1306_device_t* devToInit, uint8_t dev_addr, uint8_t screen_width, uint8_t screen_height, uint8_t* buffer);
+
+void SSD1306_send_raw_cmd(ssd1306_device_t* device, uint8_t cmd);
+void SSD1306_send_raw_cmd_list(ssd1306_device_t* device, uint8_t* commandBuf, int num);
+
+void SSD1306_set_scrolling(ssd1306_device_t* device, bool on);
+void SSD1306_render_area(ssd1306_device_t* device, uint8_t* renderContent, size_t contentLength);
+void SSD1306_render_full_area(ssd1306_device_t* device);
+void SSD1306_clear_area(ssd1306_device_t* device);
+void SSD1306_set_pixel(ssd1306_device_t* device, int x, int y, bool on);
+void SSD1306_draw_line(ssd1306_device_t* device, int x0, int y0, int x1, int y1, bool on);
+
+void SSD1306_write_char_at(ssd1306_device_t* device, int16_t x, int16_t y, uint8_t ch);
+void SSD1306_write_string_at(ssd1306_device_t* device, int16_t x, int16_t y, char* str);
 
 #endif /* SSD1306_H */
