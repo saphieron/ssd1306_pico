@@ -11,6 +11,8 @@
  * Modifications:
  * MIT License
  * Copyright (c) [2025] [saphieron]
+ * Note: Most if not all the comments within this file stem from the original authors,
+ *  explaining the code. They >should< be correct, but take the code as main source of truth.
  */
 
 #include <stdio.h>
@@ -23,6 +25,11 @@
 #include "ssd1306.h"
 #include "ssd1306_font.h"
 
+ /**
+ * The SSD1306 is an OLED/PLED driver chip, capable of driving displays up to
+ * 128x64 pixels.
+ */
+
 #ifdef USE_ASCII_FONT
 #define FONT_TO_USE ascii_column_font
 #pragma message "using ascii font"
@@ -31,66 +38,34 @@
 #pragma message "using simple_font"
 #endif //USE_ASCII_FONT
 
-
- /* Example code to talk to an SSD1306-based OLED display
-
-    The SSD1306 is an OLED/PLED driver chip, capable of driving displays up to
-    128x64 pixels.
-
-    NOTE: Ensure the device is capable of being driven at 3.3v NOT 5v. The Pico
-    GPIO (and therefore I2C) cannot be used at 5v.
-
-    You will need to use a level shifter on the I2C lines if you want to run the
-    board at 5v.
-
-    Connections on Raspberry Pi Pico board, other boards may vary.
-
-    GPIO PICO_DEFAULT_I2C_SDA_PIN (on Pico this is GP4 (pin 6)) -> SDA on display
-    board
-    GPIO PICO_DEFAULT_I2C_SCL_PIN (on Pico this is GP5 (pin 7)) -> SCL on
-    display board
-    3.3v (pin 36) -> VCC on display board
-    GND (pin 38)  -> GND on display board
- */
-
-void SSD1306_send_raw_cmd(uint8_t dev_addr, uint8_t cmd) {
-    // I2C write process expects a control byte followed by data
-    // this "data" can be a command or data to follow up a command
-    // Co = 1, D/C = 0 => the driver expects a command
-    uint8_t buf[2] = { 0x80, cmd };
-    // i2c_write_blocking(i2c_default, SSD1306_I2C_ADDR, buf, 2, false);
-    i2c_handler_write(dev_addr, buf, 2);
-}
-
-void SSD1306_send_raw_cmd_list(uint8_t dev_addr, uint8_t* buf, int num) {
-    for (int i = 0;i < num;i++) {
-        SSD1306_send_raw_cmd(dev_addr, buf[i]);
-    }
-}
-
-void SSD1306_send_buf(uint8_t dev_addr, uint8_t buf[], int buflen) {
-    // in horizontal addressing mode, the column address pointer auto-increments
-    // and then wraps around to the next page, so we can send the entire frame
-    // buffer in one gooooooo!
-
-    // copy our frame buffer into a new buffer because we need to add the control byte
-    // to the beginning
-
-    uint8_t* temp_buf = malloc(buflen + 1); //TODO: try to do this without malloc.
-
-    temp_buf[0] = 0x40; //TODO: figure out why 0x40, give it a name.
-    memcpy(temp_buf + 1, buf, buflen);
-
-    // i2c_write_blocking(i2c_default, SSD1306_I2C_ADDR, temp_buf, buflen + 1, false);
-    i2c_handler_write(SSD1306_I2C_ADDR, temp_buf, buflen + 1);
-    free(temp_buf);
-}
+#define SCREEN_SIZE_CONFIG_UNDEF 0xFF
+#define SCREEN_SIZE_CONFIG_HEIGHT32 0x02
+#define SCREEN_SIZE_CONFIG_HEIGHT64 0x12
 
 #ifndef count_of
 #define count_of(a) (sizeof(a)/sizeof((a)[0]))
 #endif
 
+void sendBuffer(uint8_t deviceAddr, uint8_t* buffer, size_t bufferLen);
 
+// Get the buffer size, that you will need to provide for usage in this driver
+size_t SSD1306_deriveBufferSizeFromScreenSize(uint8_t width, uint8_t height) {
+    return ((width - 1) - 0 + 1) * (((height / SSD1306_PAGE_HEIGHT) - 1) + 1);
+}
+
+ssd1306_render_area_t SSD1306_getDefaultFullRenderArea(uint8_t screen_width, uint8_t screen_height) {
+    return SSD1306_customRenderArea(0, 0, screen_width, screen_height);
+}
+
+ssd1306_render_area_t SSD1306_customRenderArea(uint8_t startX, uint8_t startY, uint8_t endX, uint8_t endY) {
+    ssd1306_render_area_t displayArea = {
+        startX,
+        endX - 1,
+        startY,
+        endY / SSD1306_PAGE_HEIGHT
+    };
+    return displayArea;
+}
 
 // Initialisation of the SSD1306 driver to a known, working state.
 // It is posible to initialise the driver manually with \ref SSD1306_send_raw_cmd_list().
@@ -98,21 +73,31 @@ void SSD1306_send_buf(uint8_t dev_addr, uint8_t buf[], int buflen) {
 // process defaults to some of these but they are shown here
 // to demonstrate what the initialization sequence looks like
 // Some configuration values are recommended by the board manufacturer
-int32_t SSD1306_init(uint8_t dev_addr, uint8_t screen_width, uint8_t screen_height) {
+void SSD1306_init(ssd1306_device_t* devToInit, uint8_t dev_addr, uint8_t screen_width, uint8_t screen_height, uint8_t* buffer) {
+    int32_t lastError;
 
-    // TODO: give unnamed constants a name.
     // TODO: check if the bit masking is strictly necessary, or it couldn't just be another constant
-    uint8_t screen_size_config_value = 0x02;
+    uint8_t screen_size_config_value = SCREEN_SIZE_CONFIG_UNDEF;
     if (screen_width != 128) {
-        return SSD1306_ERROR_SCREEN_WIDTH_NOT_SUPPORTED;
+        devToInit->lastError = SSD1306_ERROR_SCREEN_WIDTH_NOT_SUPPORTED;
+        return;
     }
     if (screen_height == 32) {
-        screen_size_config_value = 0x02;
+        screen_size_config_value = SCREEN_SIZE_CONFIG_HEIGHT32;
     } else if (screen_height == 64) {
-        screen_size_config_value = 0x12;
+        screen_size_config_value = SCREEN_SIZE_CONFIG_HEIGHT64;
     } else {
-        return SSD1306_ERROR_SCREEN_HEIGHT_NOT_SUPPORTED;
+        devToInit->lastError = SSD1306_ERROR_SCREEN_HEIGHT_NOT_SUPPORTED;
+        return;
     }
+
+
+    devToInit->address = dev_addr;
+    devToInit->buffer = buffer;
+    devToInit->bufferLength = SSD1306_deriveBufferSizeFromScreenSize(screen_width, screen_height);
+    devToInit->width = screen_width;
+    devToInit->height = screen_height;
+    devToInit->renderArea = SSD1306_getDefaultFullRenderArea(screen_width, screen_height);
 
     uint8_t cmds[] = {
         SSD1306_SET_DISP,               // set display off
@@ -123,7 +108,7 @@ int32_t SSD1306_init(uint8_t dev_addr, uint8_t screen_width, uint8_t screen_heig
         SSD1306_SET_DISP_START_LINE,    // set display start line to 0
         SSD1306_SET_SEG_REMAP | 0x01,   // set segment re-map, column address 127 is mapped to SEG0
         SSD1306_SET_MUX_RATIO,          // set multiplex ratio
-        SSD1306_HEIGHT - 1,             // Display height - 1
+        screen_height - 1,             // Display height - 1
         SSD1306_SET_COM_OUT_DIR | 0x08, // set COM (common) output scan direction. Scan from bottom up, COM[N-1] to COM0
         SSD1306_SET_DISP_OFFSET,        // set display offset
         SSD1306_NO_DISPLAY_OFFSET,      // no offset
@@ -148,11 +133,26 @@ int32_t SSD1306_init(uint8_t dev_addr, uint8_t screen_width, uint8_t screen_heig
         SSD1306_SET_DISP | 0x01,        // turn display on
     };
 
-    SSD1306_send_raw_cmd_list(dev_addr, cmds, count_of(cmds));
-    return 0;
+    SSD1306_send_raw_cmd_list(devToInit, cmds, count_of(cmds));
+
+    devToInit->lastError = SSD1306_ERROR_NO_ERROR;
 }
 
-void SSD1306_set_scrolling(uint8_t dev_addr, bool on) {
+void SSD1306_send_raw_cmd(ssd1306_device_t* device, uint8_t cmd) {
+    // I2C write process expects a control byte followed by data.
+    // This "data" can be a command or data to follow up a command
+    // Co = 1, D/C = 0 => the driver expects a command
+    uint8_t buf[2] = { 0x80, cmd };
+    i2c_handler_write(device->address, buf, 2);
+}
+
+void SSD1306_send_raw_cmd_list(ssd1306_device_t* device, uint8_t* commandBuf, int num) {
+    for (int i = 0;i < num;i++) {
+        SSD1306_send_raw_cmd(device, commandBuf[i]);
+    }
+}
+
+void SSD1306_set_scrolling(ssd1306_device_t* device, bool on) {
     // configure horizontal scrolling
     //TODO: reevaluate what this is meant to be saying.
     uint8_t cmds[] = {
@@ -166,32 +166,35 @@ void SSD1306_set_scrolling(uint8_t dev_addr, bool on) {
         SSD1306_SET_SCROLL | (on ? 0x01 : 0) // Start/stop scrolling
     };
 
-    SSD1306_send_raw_cmd_list(dev_addr, cmds, count_of(cmds));
+    SSD1306_send_raw_cmd_list(device, cmds, count_of(cmds));
 }
 
-
-void SSD1306_render_area(uint8_t dev_addr, uint8_t* buf, ssd1306_render_area_t* area) {
+void SSD1306_render_area(ssd1306_device_t* device, uint8_t* renderContent, size_t contentLength) {
     // update a portion of the display with a render area
     uint8_t cmds[] = {
         SSD1306_SET_COL_ADDR,
-        area->start_col,
-        area->end_col,
+        device->renderArea.start_col,
+        device->renderArea.end_col,
         SSD1306_SET_PAGE_ADDR,
-        area->start_page,
-        area->end_page
+        device->renderArea.start_page,
+        device->renderArea.end_page
     };
 
-    SSD1306_send_raw_cmd_list(dev_addr, cmds, count_of(cmds));
-    SSD1306_send_buf(dev_addr, buf, area->buflen);
+    SSD1306_send_raw_cmd_list(device, cmds, count_of(cmds));
+    sendBuffer(device->address, renderContent, contentLength);
 }
 
-void SSD1306_clear_area(uint8_t dev_addr, uint8_t* buf, ssd1306_render_area_t* area) {
-    memset(buf, 0, area->buflen);
-    SSD1306_render_area(dev_addr, buf, area);
+void SSD1306_render_full_area(ssd1306_device_t* device) {
+    SSD1306_render_area(device, device->buffer, device->bufferLength);
+}
+
+void SSD1306_clear_area(ssd1306_device_t* device) {
+    memset(device->buffer, 0, device->bufferLength);
+    SSD1306_render_full_area(device);
 }
 
 //Set the pixel in a given buffer that is then passed on to the display
-void SSD1306_set_pixel(uint8_t* buf, int x, int y, bool on) {
+void SSD1306_set_pixel(ssd1306_device_t* device, int x, int y, bool on) {
     assert(x >= 0 && x < SSD1306_WIDTH && y >= 0 && y < SSD1306_HEIGHT);
 
     // The calculation to determine the correct bit to set depends on which address
@@ -207,18 +210,18 @@ void SSD1306_set_pixel(uint8_t* buf, int x, int y, bool on) {
     const int BytesPerRow = SSD1306_WIDTH; // x pixels, 1bpp, but each row is 8 pixel high, so (x / 8) * 8
 
     int byte_idx = (y / 8) * BytesPerRow + x;
-    uint8_t byte = buf[byte_idx];
+    uint8_t byte = device->buffer[byte_idx];
 
     if (on)
         byte |= 1 << (y % 8);
     else
         byte &= ~(1 << (y % 8));
 
-    buf[byte_idx] = byte;
+    device->buffer[byte_idx] = byte;
 }
 
 // Basic Bresenhams.
-void SSD1306_draw_line(uint8_t* buf, int x0, int y0, int x1, int y1, bool on) {
+void SSD1306_draw_line(ssd1306_device_t* device, int x0, int y0, int x1, int y1, bool on) {
 
     int dx = abs(x1 - x0);
     int sx = x0 < x1 ? 1 : -1;
@@ -228,7 +231,7 @@ void SSD1306_draw_line(uint8_t* buf, int x0, int y0, int x1, int y1, bool on) {
     int e2;
 
     while (true) {
-        SSD1306_set_pixel(buf, x0, y0, on);
+        SSD1306_set_pixel(device, x0, y0, on);
         if (x0 == x1 && y0 == y1)
             break;
         e2 = 2 * err;
@@ -244,11 +247,9 @@ void SSD1306_draw_line(uint8_t* buf, int x0, int y0, int x1, int y1, bool on) {
     }
 }
 
-//TODO: create more letters for lower case
-//TODO: also figure out if there's a nicer way to write this
 static inline int get_font_index(char ch) {
 #ifdef USE_ASCII_FONT
-    if(ch > 127){
+    if (ch > 127) {
         return 0;
     }
     return ch;
@@ -262,36 +263,49 @@ static inline int get_font_index(char ch) {
 #endif //USE_ASCII_FONT
 }
 
-void SSD1306_write_char_at(uint8_t* buf, int16_t x, int16_t y, uint8_t ch) {
-    if (x > SSD1306_WIDTH - 8 || y > SSD1306_HEIGHT - 8)
+void SSD1306_write_char_at(ssd1306_device_t* device, int16_t x, int16_t y, uint8_t ch) {
+    if (x > device->width - 8 || y > device->height - 8)
         return;
 
     // For the moment, only write on Y row boundaries (every 8 vertical pixels)
     y = y / 8;
 
-    // ch = toupper(ch); //TODO: assume also supporting lower case letters
-    int idx = get_font_index(ch);
-    int fb_idx = y * 128 + x;
+    int index = get_font_index(ch);
+    int fb_index = y * 128 + x;
 
     for (int i = 0;i < 8;i++) {
-        buf[fb_idx++] = FONT_TO_USE[idx * 8 + i];
+        device->buffer[fb_index++] = FONT_TO_USE[index * 8 + i];
     }
 }
 
-void SSD1306_write_string_at(uint8_t* buf, int16_t x, int16_t y, char* str) {
+void SSD1306_write_string_at(ssd1306_device_t* device, int16_t x, int16_t y, char* str) {
     // Cull out any string off the screen
-    if (x > SSD1306_WIDTH - 8 || y > SSD1306_HEIGHT - 8)
+    if (x > device->width - 8 || y > device->height - 8)
         return;
 
     while (*str) {
-        SSD1306_write_char_at(buf, x, y, *str++);
+        SSD1306_write_char_at(device, x, y, *str++);
         x += 8;
     }
 }
 
 
-void SSD1306_get_buflen_from_render_area(ssd1306_render_area_t* area) {
-    // calculate how long the flattened buffer will be for a render area
-    area->buflen = (area->end_col - area->start_col + 1) * (area->end_page - area->start_page + 1);
-}
+// ###############
+// # internals
+// ###############
 
+void sendBuffer(uint8_t deviceAddr, uint8_t* buffer, size_t bufferLen) {
+    // in horizontal addressing mode, the column address pointer auto-increments
+    // and then wraps around to the next page, so we can send the entire frame
+    // buffer in one gooooooo!
+
+    // copy our frame buffer into a new buffer because we need to add the control byte
+    // to the beginning
+    uint8_t tempBuffer[bufferLen + 1];
+    // uint8_t* temp_buf = malloc(bufferLen + 1); //TODO: try to do this without malloc.
+
+    tempBuffer[0] = 0x40; //TODO: figure out why 0x40, give it a name.
+    memcpy(tempBuffer + 1, buffer, bufferLen);
+    i2c_handler_write(deviceAddr, tempBuffer, bufferLen + 1);
+    // free(temp_buf);
+}
