@@ -40,7 +40,6 @@ int main() {
     ssd1306_device_t device;
     uint8_t screenBuffer[SSD1306_deriveBufferSizeFromScreenSize(128, 32)];
     memset(screenBuffer, 0xBF, SSD1306_deriveBufferSizeFromScreenSize(128, 32));
-    printf("basic screenBuffer: bufferlen %u, bufferadd %p\n", SSD1306_deriveBufferSizeFromScreenSize(128, 32), screenBuffer);
 
     // run through the complete initialization process
     SSD1306_init(&device, SSD1306_I2C_ADDR, 128, 32, screenBuffer);
@@ -52,9 +51,11 @@ int main() {
     }
     printf("initialised ssd1306\n");
 
-    run_hardware_test(&device);
-    // run_string_test(&device);
-    // run_font_test(&device);
+    while (1) {
+        run_hardware_test(&device);
+        run_string_test(&device);
+        run_font_test(&device);
+    }
     return 0;
 }
 
@@ -70,36 +71,31 @@ static uint8_t raspberry26x32[] = { 0x0, 0x0, 0xe, 0x7e, 0xfe, 0xff, 0xff, 0xff,
 
 
 int run_hardware_test(ssd1306_device_t* device) {
-    //TODO: if this doesnt work with the buflen, go back to the hardcoded max buffer size
-    // zero the entire display
-    printf("run_hardware_test: bufferlen %u, bufferadd %p\n", device->bufferLength, device->buffer);
-    SSD1306_clear_area(device);
+    SSD1306_clearArea(device);
 
-    SSD1306_send_raw_cmd(device, SSD1306_SET_ALL_ON);    // Set all pixels on
+    SSD1306_sendRawCommand(device, SSD1306_SET_ALL_ON);    // Set all pixels on
     sleep_ms(500);
-    SSD1306_send_raw_cmd(device, SSD1306_SET_ENTIRE_ON); // go back to following RAM for pixel state
+    SSD1306_sendRawCommand(device, SSD1306_SET_ENTIRE_ON); // go back to following RAM for pixel state
     sleep_ms(500);
 
     // render 3 cute little raspberries
-    while (1) {
-        ssd1306_render_area_t raspberry_area = {
-            start_page: 0,
-            end_page : IMG_HEIGHT - 1,
-            start_col : 0,
-            end_col : IMG_WIDTH - 1
-        };
-        printf("Looping over test cases\n");
-        ssd1306_render_area_t originalRenderArea = device->renderArea;
-        device->renderArea = raspberry_area;
-        test_render_image(device, raspberry26x32, IMG_WIDTH, IMG_HEIGHT);
-        device->renderArea = originalRenderArea;
+    ssd1306_render_area_t raspberry_area = {
+        start_page: 0,
+        end_page : IMG_HEIGHT - 1,
+        start_col : 0,
+        end_col : IMG_WIDTH - 1
+    };
 
-        SSD1306_clear_area(device);
-        sleep_ms(100);
-        test_write_string(device);
-        test_inversion(device);
-        test_draw_lines(device);
-    }
+    // Render image in a specific section.
+    ssd1306_render_area_t originalRenderArea = device->renderArea;
+    device->renderArea = raspberry_area;
+    test_render_image(device, raspberry26x32, IMG_WIDTH, IMG_HEIGHT);
+    device->renderArea = originalRenderArea;
+    SSD1306_clearArea(device);
+
+    test_write_string(device);
+    test_inversion(device);
+    test_draw_lines(device);
 }
 
 void test_render_image(ssd1306_device_t* device, uint8_t* image, uint8_t imgSizeX, uint8_t imgSizeY) {
@@ -107,13 +103,13 @@ void test_render_image(ssd1306_device_t* device, uint8_t* image, uint8_t imgSize
     uint8_t offset = 5 + imgSizeX; // 5px padding
 
     for (int i = 0; i < 3; i++) {
-        SSD1306_render_area(device, image, imageDataLenght);
+        SSD1306_renderArea(device, image, imageDataLenght);
         device->renderArea.start_col += offset;
         device->renderArea.end_col += offset;
     }
-    SSD1306_set_scrolling(device, true);
+    SSD1306_setScrolling(device, true);
     sleep_ms(5000);
-    SSD1306_set_scrolling(device, false);
+    SSD1306_setScrolling(device, false);
 
 }
 
@@ -132,10 +128,10 @@ void test_write_string(ssd1306_device_t* device) {
     };
     int y = 0;
     for (uint i = 0;i < count_of(text); i++) {
-        SSD1306_write_string_at(device, 5, y, text[i]);
+        SSD1306_writeStringAt(device, 5, y, text[i]);
         y += 8;
     }
-    SSD1306_render_full_area(device);
+    SSD1306_renderFullArea(device);
     sleep_ms(3000);
 }
 
@@ -145,13 +141,13 @@ void test_draw_lines(ssd1306_device_t* device) {
     bool pix = true;
     for (int i = 0; i < 2;i++) {
         for (int x = 0;x < SSD1306_WIDTH;x++) {
-            SSD1306_draw_line(device, x, 0, SSD1306_WIDTH - 1 - x, SSD1306_HEIGHT - 1, pix);
-            SSD1306_render_full_area(device);
+            SSD1306_drawLine(device, x, 0, SSD1306_WIDTH - 1 - x, SSD1306_HEIGHT - 1, pix);
+            SSD1306_renderFullArea(device);
         }
 
         for (int y = SSD1306_HEIGHT - 1; y >= 0;y--) {
-            SSD1306_draw_line(device, 0, y, SSD1306_WIDTH - 1, SSD1306_HEIGHT - 1 - y, pix);
-            SSD1306_render_full_area(device);
+            SSD1306_drawLine(device, 0, y, SSD1306_WIDTH - 1, SSD1306_HEIGHT - 1 - y, pix);
+            SSD1306_renderFullArea(device);
         }
         pix = false;
     }
@@ -160,9 +156,9 @@ void test_draw_lines(ssd1306_device_t* device) {
 void test_inversion(ssd1306_device_t* device) {
     printf("Invert screen\n");
     // Test the display invert function
-    SSD1306_send_raw_cmd(device, SSD1306_SET_INV_DISP);
+    SSD1306_sendRawCommand(device, SSD1306_SET_INV_DISP);
     sleep_ms(3000);
-    SSD1306_send_raw_cmd(device, SSD1306_SET_NORM_DISP);
+    SSD1306_sendRawCommand(device, SSD1306_SET_NORM_DISP);
 }
 
 char* test_text = "A SUNSET BLOOM\n\
@@ -179,16 +175,16 @@ And we watched the occurrence in silence instead.";
 
 void run_string_test(ssd1306_device_t* device) {
 
-    while (1) {
-        SSD1306_clear_area(device);
+    printf("Test Render a long thring by cycling through it\n");
+    SSD1306_clearArea(device);
 
-        // SSD1306_send_raw_cmd(SSD1306_I2C_ADDR, SSD1306_SET_ALL_ON);    // Set all pixels on
-        // sleep_ms(500);
-        SSD1306_send_raw_cmd(device, SSD1306_SET_ENTIRE_ON); // go back to following RAM for pixel state
-        sleep_ms(500);
+    // SSD1306_send_raw_cmd(SSD1306_I2C_ADDR, SSD1306_SET_ALL_ON);    // Set all pixels on
+    // sleep_ms(500);
+    SSD1306_sendRawCommand(device, SSD1306_SET_ENTIRE_ON); // go back to following RAM for pixel state
+    sleep_ms(500);
 
-        render_page_through_string(device, test_text);
-    }
+    render_page_through_string(device, test_text);
+    printf("Test Render a long thring by cycling through it, End\n");
 }
 
 void render_page_through_string(ssd1306_device_t* device, char* text) {
@@ -239,10 +235,10 @@ void render_page_through_string(ssd1306_device_t* device, char* text) {
             printf("rendering text:\n1'%s'\n2'%s'\n3'%s'\n4'%s'\n", screen_content[0], screen_content[1], screen_content[2], screen_content[3]);
             uint8_t y = 0;
             for (size_t i = 0; i < 4; i++) {
-                SSD1306_write_string_at(device, 0, y, screen_content[i]);
+                SSD1306_writeStringAt(device, 0, y, screen_content[i]);
                 y += 8;
             }
-            SSD1306_render_full_area(device);
+            SSD1306_renderFullArea(device);
             sleep_ms(5000);
             screen_line = 0;
             memset(screen_content, 0, sizeof(screen_content));
@@ -251,21 +247,21 @@ void render_page_through_string(ssd1306_device_t* device, char* text) {
         ++pos_in_text;
     }
     if (partiallyFullScreenContent) {
-        SSD1306_clear_area(device);
+        SSD1306_clearArea(device);
         strncpy(screen_content[screen_line], text + line_start_point, 16);
         printf("final rendering text:\n1'%s'\n2'%s'\n3'%s'\n4'%s'\n", screen_content[0], screen_content[1], screen_content[2], screen_content[3]);
         uint8_t y = 0;
         for (size_t i = 0; i < screen_line; i++) {
-            SSD1306_write_string_at(device, 0, y, screen_content[i]);
+            SSD1306_writeStringAt(device, 0, y, screen_content[i]);
             y += 8;
         }
-        SSD1306_render_full_area(device);
+        SSD1306_renderFullArea(device);
     } else {
         printf("No rest to render: pos_in_text %u, length_to_copy %u, screen_line %u\n", pos_in_text, length_to_copy, screen_line);
     }
     sleep_ms(5000);
 
-    SSD1306_clear_area(device);
+    SSD1306_clearArea(device);
 }
 
 void run_font_test(ssd1306_device_t* device) {
@@ -275,24 +271,20 @@ void run_font_test(ssd1306_device_t* device) {
         dummyText[i - 32] = ((char)i);
     }
 
-    SSD1306_clear_area(device);
+    SSD1306_clearArea(device);
 
-    // SSD1306_send_raw_cmd(SSD1306_I2C_ADDR, SSD1306_SET_ALL_ON);    // Set all pixels on
-    // sleep_ms(500);
-    SSD1306_send_raw_cmd(device, SSD1306_SET_ENTIRE_ON); // go back to following RAM for pixel state
+    SSD1306_sendRawCommand(device, SSD1306_SET_ENTIRE_ON); // go back to following RAM for pixel state
     sleep_ms(500);
 
-    while (1) {
-        printf("dummy text '%s'\n", dummyText);
-        SSD1306_clear_area(device);
+    printf("render font test '%s'\n", dummyText);
+    SSD1306_clearArea(device);
 
-        SSD1306_send_raw_cmd(device, SSD1306_SET_ALL_ON);    // Set all pixels on
-        sleep_ms(500);
-        SSD1306_send_raw_cmd(device, SSD1306_SET_ENTIRE_ON); // go back to following RAM for pixel state
-        sleep_ms(500);
+    SSD1306_sendRawCommand(device, SSD1306_SET_ALL_ON);    // Set all pixels on
+    sleep_ms(500);
+    SSD1306_sendRawCommand(device, SSD1306_SET_ENTIRE_ON); // go back to following RAM for pixel state
+    sleep_ms(500);
 
-        render_page_through_string(device, dummyText);
+    render_page_through_string(device, dummyText);
 
-        printf("\nend of loop\n");
-    }
+    printf("\nrender font test end\n");
 }

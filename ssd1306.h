@@ -78,8 +78,8 @@
 
 //Errors
 #define SSD1306_ERROR_NO_ERROR 0
-#define SSD1306_ERROR_SCREEN_WIDTH_NOT_SUPPORTED -1
-#define SSD1306_ERROR_SCREEN_HEIGHT_NOT_SUPPORTED -2
+#define SSD1306_ERROR_SCREEN_WIDTH_NOT_SUPPORTED -66
+#define SSD1306_ERROR_SCREEN_HEIGHT_NOT_SUPPORTED -67
 
 typedef struct render_area_type {
     uint8_t start_col;
@@ -88,6 +88,9 @@ typedef struct render_area_type {
     uint8_t end_page;
 } ssd1306_render_area_t;
 
+// The only error that can occur is when sending commands via I2C.
+// Check lastError member to see whether the write was 
+//  successful (according to underlying abstraction).
 typedef struct ssd1306_device {
     uint8_t address;
     uint8_t* buffer;
@@ -104,19 +107,20 @@ size_t SSD1306_deriveBufferSizeFromScreenSize(uint8_t width, uint8_t height);
 ssd1306_render_area_t SSD1306_customRenderArea(uint8_t startX, uint8_t startY, uint8_t endX, uint8_t endY);
 ssd1306_render_area_t SSD1306_getDefaultFullRenderArea(uint8_t screen_width, uint8_t screen_height);
 
+// All of these functions interact with 
 void SSD1306_init(ssd1306_device_t* devToInit, uint8_t dev_addr, uint8_t screen_width, uint8_t screen_height, uint8_t* buffer);
+void SSD1306_sendRawCommand(ssd1306_device_t* device, uint8_t cmd);
+void SSD1306_sendRawCmdList(ssd1306_device_t* device, uint8_t* commandBuf, int num);
+void SSD1306_setScrolling(ssd1306_device_t* device, bool on);
+void SSD1306_renderArea(ssd1306_device_t* device, uint8_t* renderContent, size_t contentLength);
+void SSD1306_renderFullArea(ssd1306_device_t* device);
+void SSD1306_clearArea(ssd1306_device_t* device);
 
-void SSD1306_send_raw_cmd(ssd1306_device_t* device, uint8_t cmd);
-void SSD1306_send_raw_cmd_list(ssd1306_device_t* device, uint8_t* commandBuf, int num);
-
-void SSD1306_set_scrolling(ssd1306_device_t* device, bool on);
-void SSD1306_render_area(ssd1306_device_t* device, uint8_t* renderContent, size_t contentLength);
-void SSD1306_render_full_area(ssd1306_device_t* device);
-void SSD1306_clear_area(ssd1306_device_t* device);
-void SSD1306_set_pixel(ssd1306_device_t* device, int x, int y, bool on);
-void SSD1306_draw_line(ssd1306_device_t* device, int x0, int y0, int x1, int y1, bool on);
-
-void SSD1306_write_char_at(ssd1306_device_t* device, int16_t x, int16_t y, uint8_t ch);
-void SSD1306_write_string_at(ssd1306_device_t* device, int16_t x, int16_t y, char* str);
+// These only prepare the conntents of the device struct's internal buffer. 
+// Requires to call renderAreaFull() or renderArea() to trigger an effect on the screen.
+void SSD1306_setPixel(ssd1306_device_t* device, int x, int y, bool on);
+void SSD1306_drawLine(ssd1306_device_t* device, int x0, int y0, int x1, int y1, bool on);
+void SSD1306_writeCharAt(ssd1306_device_t* device, int16_t x, int16_t y, uint8_t ch);
+void SSD1306_writeStringAt(ssd1306_device_t* device, int16_t x, int16_t y, char* str);
 
 #endif /* SSD1306_H */

@@ -68,13 +68,13 @@ ssd1306_render_area_t SSD1306_customRenderArea(uint8_t startX, uint8_t startY, u
 }
 
 // Initialisation of the SSD1306 driver to a known, working state.
-// It is posible to initialise the driver manually with \ref SSD1306_send_raw_cmd_list().
+// It is posible to initialise the driver manually with \ref SSD1306_sendRawCmdList().
 // Some of these commands are not strictly necessary as the reset
 // process defaults to some of these but they are shown here
 // to demonstrate what the initialization sequence looks like
 // Some configuration values are recommended by the board manufacturer
 void SSD1306_init(ssd1306_device_t* devToInit, uint8_t dev_addr, uint8_t screen_width, uint8_t screen_height, uint8_t* buffer) {
-    int32_t lastError;
+    devToInit->lastError = SSD1306_ERROR_NO_ERROR;
 
     // TODO: check if the bit masking is strictly necessary, or it couldn't just be another constant
     uint8_t screen_size_config_value = SCREEN_SIZE_CONFIG_UNDEF;
@@ -133,26 +133,32 @@ void SSD1306_init(ssd1306_device_t* devToInit, uint8_t dev_addr, uint8_t screen_
         SSD1306_SET_DISP | 0x01,        // turn display on
     };
 
-    SSD1306_send_raw_cmd_list(devToInit, cmds, count_of(cmds));
-
-    devToInit->lastError = SSD1306_ERROR_NO_ERROR;
+    SSD1306_sendRawCmdList(devToInit, cmds, count_of(cmds));
 }
 
-void SSD1306_send_raw_cmd(ssd1306_device_t* device, uint8_t cmd) {
+void SSD1306_sendRawCommand(ssd1306_device_t* device, uint8_t cmd) {
+    device->lastError = SSD1306_ERROR_NO_ERROR;
     // I2C write process expects a control byte followed by data.
     // This "data" can be a command or data to follow up a command
     // Co = 1, D/C = 0 => the driver expects a command
     uint8_t buf[2] = { 0x80, cmd };
-    i2c_handler_write(device->address, buf, 2);
-}
-
-void SSD1306_send_raw_cmd_list(ssd1306_device_t* device, uint8_t* commandBuf, int num) {
-    for (int i = 0;i < num;i++) {
-        SSD1306_send_raw_cmd(device, commandBuf[i]);
+    int32_t errorCode = i2c_handler_write(device->address, buf, 2);
+    if (errorCode < 0) {
+        printf("SSD1306_sendRawCommand, received error code %d\n", errorCode);
+        device->lastError = errorCode;
     }
 }
 
-void SSD1306_set_scrolling(ssd1306_device_t* device, bool on) {
+void SSD1306_sendRawCmdList(ssd1306_device_t* device, uint8_t* commandBuf, int num) {
+    for (int i = 0;i < num;i++) {
+        SSD1306_sendRawCommand(device, commandBuf[i]);
+        if (device->lastError != 0) {
+            return;
+        }
+    }
+}
+
+void SSD1306_setScrolling(ssd1306_device_t* device, bool on) {
     // configure horizontal scrolling
     //TODO: reevaluate what this is meant to be saying.
     uint8_t cmds[] = {
@@ -166,10 +172,10 @@ void SSD1306_set_scrolling(ssd1306_device_t* device, bool on) {
         SSD1306_SET_SCROLL | (on ? 0x01 : 0) // Start/stop scrolling
     };
 
-    SSD1306_send_raw_cmd_list(device, cmds, count_of(cmds));
+    SSD1306_sendRawCmdList(device, cmds, count_of(cmds));
 }
 
-void SSD1306_render_area(ssd1306_device_t* device, uint8_t* renderContent, size_t contentLength) {
+void SSD1306_renderArea(ssd1306_device_t* device, uint8_t* renderContent, size_t contentLength) {
     // update a portion of the display with a render area
     uint8_t cmds[] = {
         SSD1306_SET_COL_ADDR,
@@ -180,21 +186,21 @@ void SSD1306_render_area(ssd1306_device_t* device, uint8_t* renderContent, size_
         device->renderArea.end_page
     };
 
-    SSD1306_send_raw_cmd_list(device, cmds, count_of(cmds));
+    SSD1306_sendRawCmdList(device, cmds, count_of(cmds));
     sendBuffer(device->address, renderContent, contentLength);
 }
 
-void SSD1306_render_full_area(ssd1306_device_t* device) {
-    SSD1306_render_area(device, device->buffer, device->bufferLength);
+void SSD1306_renderFullArea(ssd1306_device_t* device) {
+    SSD1306_renderArea(device, device->buffer, device->bufferLength);
 }
 
-void SSD1306_clear_area(ssd1306_device_t* device) {
+void SSD1306_clearArea(ssd1306_device_t* device) {
     memset(device->buffer, 0, device->bufferLength);
-    SSD1306_render_full_area(device);
+    SSD1306_renderFullArea(device);
 }
 
 //Set the pixel in a given buffer that is then passed on to the display
-void SSD1306_set_pixel(ssd1306_device_t* device, int x, int y, bool on) {
+void SSD1306_setPixel(ssd1306_device_t* device, int x, int y, bool on) {
     assert(x >= 0 && x < SSD1306_WIDTH && y >= 0 && y < SSD1306_HEIGHT);
 
     // The calculation to determine the correct bit to set depends on which address
@@ -221,7 +227,7 @@ void SSD1306_set_pixel(ssd1306_device_t* device, int x, int y, bool on) {
 }
 
 // Basic Bresenhams.
-void SSD1306_draw_line(ssd1306_device_t* device, int x0, int y0, int x1, int y1, bool on) {
+void SSD1306_drawLine(ssd1306_device_t* device, int x0, int y0, int x1, int y1, bool on) {
 
     int dx = abs(x1 - x0);
     int sx = x0 < x1 ? 1 : -1;
@@ -231,7 +237,7 @@ void SSD1306_draw_line(ssd1306_device_t* device, int x0, int y0, int x1, int y1,
     int e2;
 
     while (true) {
-        SSD1306_set_pixel(device, x0, y0, on);
+        SSD1306_setPixel(device, x0, y0, on);
         if (x0 == x1 && y0 == y1)
             break;
         e2 = 2 * err;
@@ -263,7 +269,7 @@ static inline int get_font_index(char ch) {
 #endif //USE_ASCII_FONT
 }
 
-void SSD1306_write_char_at(ssd1306_device_t* device, int16_t x, int16_t y, uint8_t ch) {
+void SSD1306_writeCharAt(ssd1306_device_t* device, int16_t x, int16_t y, uint8_t ch) {
     if (x > device->width - 8 || y > device->height - 8)
         return;
 
@@ -278,13 +284,13 @@ void SSD1306_write_char_at(ssd1306_device_t* device, int16_t x, int16_t y, uint8
     }
 }
 
-void SSD1306_write_string_at(ssd1306_device_t* device, int16_t x, int16_t y, char* str) {
+void SSD1306_writeStringAt(ssd1306_device_t* device, int16_t x, int16_t y, char* str) {
     // Cull out any string off the screen
     if (x > device->width - 8 || y > device->height - 8)
         return;
 
     while (*str) {
-        SSD1306_write_char_at(device, x, y, *str++);
+        SSD1306_writeCharAt(device, x, y, *str++);
         x += 8;
     }
 }
